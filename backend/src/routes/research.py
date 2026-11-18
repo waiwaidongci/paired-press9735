@@ -8,6 +8,7 @@ from src.schemas.study import StudyInput
 from src.schemas.observation import ObservationInput
 from src.schemas.run import RunInput
 from src.schemas.review import ReviewInput
+from src.schemas.pairing import ReadingInput,PairingPreviewInput,ReadingBatchInput
 from src.controllers import research
 from src.services import runs,studies
 from src.models.audit import Audit
@@ -36,6 +37,26 @@ def remove(id:int,row_id:int,db=Depends(get_db),user=Depends(writer)):
     db.delete(row);log(db,user,'observation.delete',row_id);db.commit();return {'deleted':True}
 @router.get('/runs')
 def list_runs(db=Depends(get_db),user=Depends(current_user)): return runs.list_runs(db)
+@router.get('/studies/{id}/readings')
+def list_readings(id:int,db=Depends(get_db),user=Depends(current_user)): return research.list_readings(db,id)
+@router.post('/studies/{id}/readings')
+def add_reading(id:int,data:ReadingInput,db=Depends(get_db),user=Depends(writer)): return research.save_reading(db,id,data,user)
+@router.post('/studies/{id}/readings/batch')
+def add_reading_batch(id:int,data:ReadingBatchInput,db=Depends(get_db),user=Depends(writer)): return research.save_reading_batch(db,id,data,user)
+@router.put('/studies/{id}/readings/{row_id}')
+def update_reading(id:int,row_id:int,data:ReadingInput,db=Depends(get_db),user=Depends(writer)): return research.save_reading(db,id,data,user,row_id)
+@router.delete('/studies/{id}/readings/{row_id}')
+def remove_reading(id:int,row_id:int,db=Depends(get_db),user=Depends(writer)): return research.delete_reading(db,id,row_id,user)
+@router.get('/studies/{id}/pairing')
+def active_pairing(id:int,db=Depends(get_db),user=Depends(current_user)): return research.active_pairing(db,id)
+@router.get('/studies/{id}/pairing/previews')
+def list_previews(id:int,db=Depends(get_db),user=Depends(current_user)): return research.list_previews(db,id)
+@router.post('/studies/{id}/pairing/previews')
+def create_preview(id:int,data:PairingPreviewInput,db=Depends(get_db),user=Depends(writer)): return research.create_preview(db,id,data,user)
+@router.get('/pairing/previews/{preview_id}')
+def get_preview(preview_id:int,db=Depends(get_db),user=Depends(current_user)): return research.get_preview(db,preview_id)
+@router.post('/pairing/previews/{preview_id}/confirm')
+def confirm_preview(preview_id:int,db=Depends(get_db),user=Depends(writer)): return research.confirm_preview(db,preview_id,user)
 @router.post('/runs')
 def create_run(data:RunInput,db=Depends(get_db),user=Depends(writer)): return research.create_run(db,data,user)
 @router.get('/runs/{id}')

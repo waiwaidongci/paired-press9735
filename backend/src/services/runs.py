@@ -6,18 +6,29 @@ from fastapi import HTTPException
 from src.models.run import Run
 from src.models.review import Review
 from src.services import studies
+from src.services import pairing as pairings
 from src.services.domain_validation import validate_parameters
 from src.services.audits import log
 from src.utils.serializers import record,now,checksum
 
 def create(db,data,user):
     studies.require(db,data.study_id)
-    rows=studies.observations(db,data.study_id)
-    if not rows: raise HTTPException(422,'先录入至少一条业务观测')
+    # Analysis never reads live readings: it freezes the batch's confirmed pairing,
+    # so later reading edits or a later confirmation cannot rewrite this run.
+    # Legacy batches that were never entered as per-process readings keep their observations.
+    active=None
+    if pairings.has_readings(db,data.study_id):
+        snapshot=pairings.frozen_snapshot(db,data.study_id)
+        if not snapshot:
+            raise HTTPException(409,'该批尚未确认可用的配对；请先在配对预览中确认')
+        active=db.scalar(select(pairings.ActivePairing).where(pairings.ActivePairing.study_id==data.study_id))
+    else:
+        snapshot=[{'source_key':x['source_key'],'values':x['values']} for x in studies.observations(db,data.study_id)]
+    if not snapshot: raise HTTPException(422,'先录入至少一条业务观测')
     try: params=validate_parameters(data.parameters)
     except (ValueError,TypeError) as e: raise HTTPException(422,str(e))
-    snapshot=[{'source_key':x['source_key'],'values':x['values']} for x in rows]
-    run=Run(study_id=data.study_id,name=data.name,parameters=params,snapshot=snapshot,checksum=checksum(snapshot),created_at=now(),status='queued')
+    run=Run(study_id=data.study_id,name=data.name,parameters=params,snapshot=snapshot,checksum=checksum(snapshot),
+            pairing_preview_id=active.preview_id if active else None,created_at=now(),status='queued')
     db.add(run);db.flush();log(db,user,'run.queue',str(run.id));db.commit()
     Redis.from_url(os.environ['REDIS_URL']).rpush('analysis-queue',run.id)
     return record(run)

@@ -9,6 +9,7 @@ class PairedRun(Base):
     parameters=Column(JSON,nullable=False)
     snapshot=Column(JSON,nullable=False)
     checksum=Column(String(64),nullable=False)
+    pairing_preview_id=Column(Integer,nullable=True)
     result=Column(JSON,nullable=True)
     error=Column(Text,default='')
     created_at=Column(String(40),nullable=False)
